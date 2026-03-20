@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import type { Map as LeafletMap, Marker, Polyline } from "leaflet";
 
 interface Props {
@@ -186,11 +186,34 @@ export default function WalkPacerMap({
     }
   }, [routeCoords]);
 
+  const handleLocate = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !currentPos) return;
+    map.setView(currentPos, 16, { animate: true });
+  }, [currentPos]);
+
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full"
-      style={{ cursor: isNavigating ? "default" : "crosshair" }}
-    />
+    <div className="relative w-full h-full">
+      <div
+        ref={containerRef}
+        className="w-full h-full"
+        style={{ cursor: isNavigating ? "default" : "crosshair" }}
+      />
+      {/* 現在地に戻るボタン */}
+      <button
+        onClick={handleLocate}
+        title="現在地に戻る"
+        className="absolute bottom-16 right-3 z-[1000] w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center active:scale-95 transition-transform"
+        style={{ boxShadow: "0 2px 6px rgba(0,0,0,0.3)" }}
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#4285F4" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" fill="#4285F4" stroke="none"/>
+          <line x1="12" y1="2"  x2="12" y2="6"/>
+          <line x1="12" y1="18" x2="12" y2="22"/>
+          <line x1="2"  y1="12" x2="6"  y2="12"/>
+          <line x1="18" y1="12" x2="22" y2="12"/>
+        </svg>
+      </button>
+    </div>
   );
 }
