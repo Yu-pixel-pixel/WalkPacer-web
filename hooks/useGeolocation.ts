@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 export interface GeoState {
   currentPos: [number, number] | null;
@@ -20,21 +20,24 @@ export function useGeolocation() {
   const watchIdRef = useRef<number | null>(null);
   const prevPosRef = useRef<GeolocationPosition | null>(null);
   const walkedRef = useRef(0);
+  const isNavigatingRef = useRef(false);
 
-  const start = useCallback(() => {
-    walkedRef.current = 0;
-    prevPosRef.current = null;
-    setState((s) => ({ ...s, walkedDistance: 0, currentSpeed: 0, error: null }));
+  // アプリ起動時に現在地取得を開始
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setState((s) => ({ ...s, error: "このブラウザは位置情報に対応していません" }));
+      return;
+    }
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, speed, accuracy } = pos.coords;
-        if (accuracy > 50) return; // 精度が悪い場合はスキップ
+        if (accuracy > 50) return;
 
         const current: [number, number] = [latitude, longitude];
 
-        // 移動距離を加算
-        if (prevPosRef.current) {
+        // ナビ中のみ距離を加算
+        if (isNavigatingRef.current && prevPosRef.current) {
           const dist = haversine(
             prevPosRef.current.coords.latitude,
             prevPosRef.current.coords.longitude,
@@ -47,28 +50,41 @@ export function useGeolocation() {
         }
         prevPosRef.current = pos;
 
-        setState({
+        setState((s) => ({
+          ...s,
           currentPos: current,
-          currentSpeed: Math.max(speed ?? 0, 0),
+          currentSpeed: isNavigatingRef.current ? Math.max(speed ?? 0, 0) : 0,
           walkedDistance: walkedRef.current,
           error: null,
-        });
+        }));
       },
       (err) => {
         setState((s) => ({ ...s, error: err.message }));
       },
       { enableHighAccuracy: true, maximumAge: 0 }
     );
+
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
   }, []);
 
-  const stop = useCallback(() => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-    prevPosRef.current = null;
+  // ナビ開始（距離カウントをリセットして追跡開始）
+  const start = useCallback(() => {
     walkedRef.current = 0;
-    setState({ currentPos: null, currentSpeed: 0, walkedDistance: 0, error: null });
+    prevPosRef.current = null;
+    isNavigatingRef.current = true;
+    setState((s) => ({ ...s, walkedDistance: 0, currentSpeed: 0, error: null }));
+  }, []);
+
+  // ナビ停止
+  const stop = useCallback(() => {
+    isNavigatingRef.current = false;
+    walkedRef.current = 0;
+    prevPosRef.current = null;
+    setState((s) => ({ ...s, walkedDistance: 0, currentSpeed: 0 }));
   }, []);
 
   return { ...state, start, stop };
