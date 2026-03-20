@@ -121,7 +121,10 @@ export default function WalkPacerMap({
         weight: 5,
         opacity: 0.8,
       }).addTo(map);
-      map.fitBounds(routeLineRef.current.getBounds(), { padding: [40, 40] });
+      const line = routeLineRef.current;
+      if (line) {
+        map.fitBounds(line.getBounds(), { padding: [40, 40] });
+      }
     }
   }, [routeCoords]);
 
