@@ -1,6 +1,6 @@
 "use client";
 
-import { PaceResult, PACE_MESSAGES, formatDistance, formatSpeed } from "@/lib/paceCalculator";
+import { PaceResult, PACE_MESSAGES, formatDistance, formatSpeed, formatDuration } from "@/lib/paceCalculator";
 import { SearchResult, TransportMode, TRANSPORT_LABELS } from "@/lib/routing";
 import { useState, useRef } from "react";
 
@@ -8,6 +8,7 @@ interface SetupProps {
   destination: [number, number] | null;
   arrivalTime: string;
   transportMode: TransportMode;
+  routePreview: { distance: number; duration: number } | null;
   onArrivalTimeChange: (v: string) => void;
   onTransportModeChange: (m: TransportMode) => void;
   onStart: () => void;
@@ -18,6 +19,7 @@ interface SetupProps {
 interface NavigatingProps {
   pace: PaceResult;
   totalDistance: number;
+  estimatedDuration: number; // OSRM推定所要時間（秒）
   transportMode: TransportMode;
   onStop: () => void;
 }
@@ -25,7 +27,7 @@ interface NavigatingProps {
 const MODES: TransportMode[] = ["foot", "bike", "car", "train"];
 
 // ナビ中パネル
-export function NavigatingPanel({ pace, totalDistance, transportMode, onStop }: NavigatingProps) {
+export function NavigatingPanel({ pace, totalDistance, estimatedDuration, transportMode, onStop }: NavigatingProps) {
   const walked = totalDistance - pace.remainingDistance;
   const progress = totalDistance > 0 ? Math.min(walked / totalDistance, 1) : 0;
 
@@ -63,10 +65,10 @@ export function NavigatingPanel({ pace, totalDistance, transportMode, onStop }: 
 
       {/* 情報グリッド */}
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <InfoCard label="残り距離"   value={formatDistance(pace.remainingDistance)} isDark={isDark} />
-        <InfoCard label="必要速度"   value={formatSpeed(pace.requiredSpeed)}         isDark={isDark} />
-        <InfoCard label="移動距離"   value={formatDistance(walked)}                  isDark={isDark} />
-        <InfoCard label="現在速度"   value={formatSpeed(pace.currentSpeed)}          isDark={isDark} />
+        <InfoCard label="残り距離"     value={formatDistance(pace.remainingDistance)} isDark={isDark} />
+        <InfoCard label="必要速度"     value={formatSpeed(pace.requiredSpeed)}         isDark={isDark} />
+        <InfoCard label="移動距離"     value={formatDistance(walked)}                  isDark={isDark} />
+        <InfoCard label="OSRM推定時間" value={formatDuration(estimatedDuration)}       isDark={isDark} />
       </div>
 
       <div className="flex-1" />
@@ -96,6 +98,7 @@ export function SetupPanel({
   destination,
   arrivalTime,
   transportMode,
+  routePreview,
   onArrivalTimeChange,
   onTransportModeChange,
   onStart,
@@ -181,10 +184,24 @@ export function SetupPanel({
         )}
       </div>
 
-      {/* 目的地状態 */}
-      <p className={`text-sm text-center ${destination ? "text-green-600 font-medium" : "text-gray-400"}`}>
-        {destination ? "✅ 目的地が設定されました" : "地図をタップするか検索して目的地を設定"}
-      </p>
+      {/* 目的地状態・推定時間 */}
+      {destination ? (
+        <div className="text-center">
+          <p className="text-sm text-green-600 font-medium">✅ 目的地が設定されました</p>
+          {routePreview && (
+            <p className="text-xs text-gray-500 mt-0.5">
+              {TRANSPORT_LABELS[transportMode].icon} 約 {formatDuration(routePreview.duration)} ／ {formatDistance(routePreview.distance)}
+            </p>
+          )}
+          {isLoading && !routePreview && (
+            <p className="text-xs text-gray-400 mt-0.5">経路を計算中...</p>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400 text-center">
+          地図をタップするか検索して目的地を設定
+        </p>
+      )}
 
       {/* 到着希望時刻 */}
       <div className="flex items-center justify-between bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-200">

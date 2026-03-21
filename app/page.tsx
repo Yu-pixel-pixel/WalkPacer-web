@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { calculatePace, PaceResult } from "@/lib/paceCalculator";
 import { fetchRoute, SearchResult, TransportMode } from "@/lib/routing";
@@ -24,8 +24,28 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
   const [totalDistance, setTotalDistance] = useState(0);
+  const [estimatedDuration, setEstimatedDuration] = useState(0);
+  const [routePreview, setRoutePreview] = useState<{ distance: number; duration: number } | null>(null);
   const [pace, setPace] = useState<PaceResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 目的地 or 移動手段が変わったら自動でルートプレビューを取得
+  useEffect(() => {
+    if (!destination || !geo.currentPos || isNavigating) return;
+    setRoutePreview(null);
+
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    previewTimerRef.current = setTimeout(async () => {
+      try {
+        const route = await fetchRoute(geo.currentPos!, destination, transportMode);
+        setRoutePreview({ distance: route.totalDistance, duration: route.estimatedDuration });
+        setRouteCoords(route.coordinates);
+      } catch {
+        // プレビュー失敗は無視（スタート時に再取得）
+      }
+    }, 600);
+  }, [destination, transportMode, isNavigating]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ペース再計算
   useEffect(() => {
@@ -34,8 +54,8 @@ export default function Home() {
     const arrival = new Date();
     arrival.setHours(h, m, 0, 0);
     if (arrival < new Date()) arrival.setDate(arrival.getDate() + 1);
-    setPace(calculatePace(totalDistance, geo.walkedDistance, arrival, geo.currentSpeed));
-  }, [geo.walkedDistance, geo.currentSpeed, isNavigating, totalDistance, arrivalTime]);
+    setPace(calculatePace(totalDistance, geo.walkedDistance, arrival, geo.currentSpeed, transportMode));
+  }, [geo.walkedDistance, geo.currentSpeed, isNavigating, totalDistance, arrivalTime, transportMode]);
 
   const handleMapClick = useCallback((lat: number, lng: number) => {
     if (!isNavigating) setDestination([lat, lng]);
@@ -53,9 +73,14 @@ export default function Home() {
     setIsLoading(true);
     setError(null);
     try {
-      const route = await fetchRoute(geo.currentPos, destination, transportMode);
-      setRouteCoords(route.coordinates);
+      // プレビュー取得済みならそのまま使う、なければ再取得
+      let route = routePreview && routeCoords.length > 0
+        ? { totalDistance: routePreview.distance, estimatedDuration: routePreview.duration, coordinates: routeCoords }
+        : await fetchRoute(geo.currentPos, destination, transportMode);
+
       setTotalDistance(route.totalDistance);
+      setEstimatedDuration(route.estimatedDuration);
+      setRouteCoords(route.coordinates);
       geo.start();
       setIsNavigating(true);
     } catch (e) {
@@ -70,7 +95,9 @@ export default function Home() {
     setIsNavigating(false);
     setRouteCoords([]);
     setTotalDistance(0);
+    setEstimatedDuration(0);
     setPace(null);
+    setRoutePreview(null);
     setDestination(null);
   };
 
@@ -97,6 +124,7 @@ export default function Home() {
           <NavigatingPanel
             pace={pace}
             totalDistance={totalDistance}
+            estimatedDuration={estimatedDuration}
             transportMode={transportMode}
             onStop={handleStop}
           />
@@ -105,6 +133,7 @@ export default function Home() {
             destination={destination}
             arrivalTime={arrivalTime}
             transportMode={transportMode}
+            routePreview={routePreview}
             onArrivalTimeChange={setArrivalTime}
             onTransportModeChange={setTransportMode}
             onStart={handleStart}

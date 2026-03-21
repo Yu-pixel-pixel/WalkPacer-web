@@ -50,12 +50,12 @@ export default function WalkPacerMap({
     const map = L.map(containerRef.current, { zoomControl: false })
       .setView([35.6812, 139.7671], 15);
 
-    // Apple Mapsに近いクリーンなタイル（CartoDB Positron）
+    // 白×黄緑×水色 — OpenStreetMap標準タイル
     L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
       {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
-        maxZoom: 20,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
       }
     ).addTo(map);
 
