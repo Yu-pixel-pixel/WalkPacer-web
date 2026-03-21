@@ -50,12 +50,12 @@ export default function WalkPacerMap({
     const map = L.map(containerRef.current, { zoomControl: false })
       .setView([35.6812, 139.7671], 15);
 
-    // 白×黄緑×水色 — OpenStreetMap標準タイル
+    // Google Maps に最も近い無料タイル（CartoDB Voyager）
     L.tileLayer(
-      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
       {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+        maxZoom: 20,
       }
     ).addTo(map);
 

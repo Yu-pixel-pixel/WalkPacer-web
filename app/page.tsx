@@ -113,7 +113,7 @@ export default function Home() {
         />
       </div>
 
-      <div className="flex-[45] overflow-hidden">
+      <div className="flex-[45] overflow-y-auto bg-gray-50">
         {error && (
           <div className="bg-red-100 text-red-700 text-sm px-4 py-2 text-center">
             {error}
