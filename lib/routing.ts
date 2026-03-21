@@ -1,15 +1,33 @@
+export type TransportMode = "foot" | "bike" | "car" | "train";
+
+export const TRANSPORT_LABELS: Record<TransportMode, { label: string; icon: string }> = {
+  foot:  { label: "徒歩", icon: "🚶" },
+  bike:  { label: "自転車", icon: "🚴" },
+  car:   { label: "車", icon: "🚗" },
+  train: { label: "電車", icon: "🚃" },
+};
+
+// OSRM プロファイル名
+const OSRM_PROFILE: Record<TransportMode, string> = {
+  foot:  "foot",
+  bike:  "bike",
+  car:   "driving",
+  train: "driving", // 電車は車ルートで代用（概算）
+};
+
 export interface RouteResult {
-  totalDistance: number;       // メートル
-  coordinates: [number, number][]; // [lat, lng][]
+  totalDistance: number;
+  coordinates: [number, number][];
 }
 
-// OSRM公開API（無料・歩行対応）
-export async function fetchWalkingRoute(
+export async function fetchRoute(
   from: [number, number],
-  to: [number, number]
+  to: [number, number],
+  mode: TransportMode = "foot"
 ): Promise<RouteResult> {
+  const profile = OSRM_PROFILE[mode];
   const url =
-    `https://router.project-osrm.org/route/v1/foot/` +
+    `https://router.project-osrm.org/route/v1/${profile}/` +
     `${from[1]},${from[0]};${to[1]},${to[0]}` +
     `?overview=full&geometries=geojson`;
 
@@ -26,11 +44,14 @@ export async function fetchWalkingRoute(
     ([lng, lat]: [number, number]) => [lat, lng]
   );
 
-  return {
-    totalDistance: route.distance,
-    coordinates: coords,
-  };
+  return { totalDistance: route.distance, coordinates: coords };
 }
+
+// 後方互換
+export const fetchWalkingRoute = (
+  from: [number, number],
+  to: [number, number]
+) => fetchRoute(from, to, "foot");
 
 // Nominatim（OpenStreetMap）で場所検索
 export interface SearchResult {

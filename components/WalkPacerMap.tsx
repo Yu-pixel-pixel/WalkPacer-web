@@ -11,50 +11,18 @@ interface Props {
   isNavigating: boolean;
 }
 
-// Google Maps風の現在地マーカー（青い点＋外側のリング）
 const CURRENT_ICON_HTML = `
   <div style="position:relative;width:24px;height:24px">
-    <div style="
-      position:absolute;inset:0;
-      background:rgba(66,133,244,0.2);
-      border-radius:50%;
-      animation:pulse 2s ease-out infinite;
-    "></div>
-    <div style="
-      position:absolute;top:50%;left:50%;
-      transform:translate(-50%,-50%);
-      width:14px;height:14px;
-      background:#4285F4;
-      border:2.5px solid white;
-      border-radius:50%;
-      box-shadow:0 2px 6px rgba(0,0,0,0.35);
-    "></div>
+    <div style="position:absolute;inset:0;background:rgba(66,133,244,0.2);border-radius:50%;animation:gps-pulse 2s ease-out infinite"></div>
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:14px;height:14px;background:#4285F4;border:2.5px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.35)"></div>
   </div>
-  <style>
-    @keyframes pulse {
-      0%   { transform:scale(1);   opacity:0.8; }
-      100% { transform:scale(2.8); opacity:0;   }
-    }
-  </style>
+  <style>@keyframes gps-pulse{0%{transform:scale(1);opacity:.8}100%{transform:scale(2.8);opacity:0}}</style>
 `;
 
-// Google Maps風の目的地ピン（赤いドロップピン）
 const DEST_ICON_HTML = `
-  <div style="
-    width:28px;height:36px;
-    background:#EA4335;
-    border-radius:50% 50% 50% 0;
-    transform:rotate(-45deg);
-    border:3px solid white;
-    box-shadow:0 3px 8px rgba(0,0,0,0.4);
-  ">
-    <div style="
-      position:absolute;top:50%;left:50%;
-      transform:translate(-50%,-50%) rotate(45deg);
-      width:8px;height:8px;
-      background:white;
-      border-radius:50%;
-    "></div>
+  <div style="position:relative;width:28px;height:36px">
+    <div style="width:28px;height:28px;background:#EA4335;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.35)"></div>
+    <div style="position:absolute;top:8px;left:8px;width:8px;height:8px;background:white;border-radius:50%"></div>
   </div>
 `;
 
@@ -71,44 +39,41 @@ export default function WalkPacerMap({
   const routeLineRef = useRef<Polyline | null>(null);
   const routeShadowRef = useRef<Polyline | null>(null);
   const currentMarkerRef = useRef<Marker | null>(null);
+  const hasInitialViewRef = useRef(false); // 初回現在地表示済みフラグ
+  const userPannedRef = useRef(false);     // ユーザーが地図を動かしたフラグ
 
   // マップ初期化（1回のみ）
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
-
     const L = require("leaflet");
 
-    const map = L.map(containerRef.current, {
-      zoomControl: false,
-    }).setView([35.6812, 139.7671], 15);
+    const map = L.map(containerRef.current, { zoomControl: false })
+      .setView([35.6812, 139.7671], 15);
 
-    // CartoDB Voyager — Google Maps に近いデザイン
+    // Apple Mapsに近いクリーンなタイル（CartoDB Positron）
     L.tileLayer(
       "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
       {
-        attribution:
-          '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
         maxZoom: 20,
       }
     ).addTo(map);
 
-    // ズームボタンを右下に配置
     L.control.zoom({ position: "bottomright" }).addTo(map);
+
+    // ユーザーが地図をドラッグしたら自動追従を止める
+    map.on("dragstart", () => { userPannedRef.current = true; });
 
     map.on("click", (e: { latlng: { lat: number; lng: number } }) => {
       onMapClick(e.latlng.lat, e.latlng.lng);
     });
 
     mapRef.current = map;
-
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
+    return () => { map.remove(); mapRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 現在地マーカー更新
+  // 現在地マーカー（自動追従は初回のみ）
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !currentPos) return;
@@ -127,12 +92,14 @@ export default function WalkPacerMap({
       currentMarkerRef.current = L.marker(currentPos, { icon }).addTo(map);
     }
 
-    if (!isNavigating) {
-      map.setView(currentPos, map.getZoom());
+    // 初回だけ自動でその場所に移動する
+    if (!hasInitialViewRef.current) {
+      map.setView(currentPos, 16);
+      hasInitialViewRef.current = true;
     }
-  }, [currentPos, isNavigating]);
+  }, [currentPos]);
 
-  // 目的地マーカー更新
+  // 目的地マーカー
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -142,7 +109,6 @@ export default function WalkPacerMap({
       map.removeLayer(destMarkerRef.current);
       destMarkerRef.current = null;
     }
-
     if (destination) {
       const icon = L.divIcon({
         className: "",
@@ -152,10 +118,11 @@ export default function WalkPacerMap({
       });
       destMarkerRef.current = L.marker(destination, { icon }).addTo(map);
       map.setView(destination, 15);
+      userPannedRef.current = false; // 目的地設定時は追従を再開
     }
   }, [destination]);
 
-  // ルートライン更新（Google Maps風：白い縁取り＋青いライン）
+  // ルートライン（白縁取り＋青）
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -165,30 +132,18 @@ export default function WalkPacerMap({
     if (routeLineRef.current)   { map.removeLayer(routeLineRef.current);   routeLineRef.current = null;   }
 
     if (routeCoords.length > 0) {
-      // 白い縁取り（下レイヤー）
-      routeShadowRef.current = L.polyline(routeCoords, {
-        color: "white",
-        weight: 9,
-        opacity: 0.9,
-      }).addTo(map);
-
-      // 青いルートライン（上レイヤー）
-      routeLineRef.current = L.polyline(routeCoords, {
-        color: "#4285F4",
-        weight: 5,
-        opacity: 1,
-      }).addTo(map);
-
+      routeShadowRef.current = L.polyline(routeCoords, { color: "white", weight: 9, opacity: 0.9 }).addTo(map);
+      routeLineRef.current   = L.polyline(routeCoords, { color: "#4285F4", weight: 5, opacity: 1 }).addTo(map);
       const line = routeLineRef.current;
-      if (line) {
-        map.fitBounds(line.getBounds(), { padding: [40, 40] });
-      }
+      if (line) map.fitBounds(line.getBounds(), { padding: [40, 40] });
     }
   }, [routeCoords]);
 
+  // 現在地に戻るボタン
   const handleLocate = useCallback(() => {
     const map = mapRef.current;
     if (!map || !currentPos) return;
+    userPannedRef.current = false;
     map.setView(currentPos, 16, { animate: true });
   }, [currentPos]);
 
@@ -203,10 +158,10 @@ export default function WalkPacerMap({
       <button
         onClick={handleLocate}
         title="現在地に戻る"
-        className="absolute bottom-16 right-3 z-[1000] w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center active:scale-95 transition-transform"
+        className="absolute bottom-16 right-3 z-[1000] w-10 h-10 bg-white rounded-full flex items-center justify-center active:scale-95 transition-transform"
         style={{ boxShadow: "0 2px 6px rgba(0,0,0,0.3)" }}
       >
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#4285F4" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#4285F4" strokeWidth="2.2" strokeLinecap="round">
           <circle cx="12" cy="12" r="4" fill="#4285F4" stroke="none"/>
           <line x1="12" y1="2"  x2="12" y2="6"/>
           <line x1="12" y1="18" x2="12" y2="22"/>
