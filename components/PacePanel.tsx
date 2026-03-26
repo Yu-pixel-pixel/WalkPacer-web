@@ -1,16 +1,14 @@
 "use client";
 
 import { PaceResult, PACE_MESSAGES, formatDistance, formatSpeed, formatDuration } from "@/lib/paceCalculator";
-import { SearchResult, TransportMode, TRANSPORT_LABELS } from "@/lib/routing";
+import { SearchResult } from "@/lib/routing";
 import { useState, useRef, useEffect } from "react";
 
 interface SetupProps {
   destination: [number, number] | null;
   arrivalTime: string;
-  transportMode: TransportMode;
   routePreview: { distance: number; duration: number } | null;
   onArrivalTimeChange: (v: string) => void;
-  onTransportModeChange: (m: TransportMode) => void;
   onStart: () => void;
   isLoading: boolean;
   onSelectResult: (r: SearchResult) => void;
@@ -20,14 +18,11 @@ interface NavigatingProps {
   pace: PaceResult;
   totalDistance: number;
   estimatedDuration: number;
-  transportMode: TransportMode;
   onStop: () => void;
 }
 
-const MODES: TransportMode[] = ["foot", "bike", "car", "train"];
-
 // ━━━ ナビ中パネル ━━━
-export function NavigatingPanel({ pace, totalDistance, estimatedDuration, transportMode, onStop }: NavigatingProps) {
+export function NavigatingPanel({ pace, totalDistance, estimatedDuration, onStop }: NavigatingProps) {
   const walked = totalDistance - pace.remainingDistance;
   const progress = totalDistance > 0 ? Math.min(walked / totalDistance, 1) : 0;
 
@@ -39,11 +34,10 @@ export function NavigatingPanel({ pace, totalDistance, estimatedDuration, transp
   };
   const isDark = pace.status !== "slightlyBehind";
   const tc = isDark ? "text-white" : "text-gray-800";
-  const { icon } = TRANSPORT_LABELS[transportMode];
 
   return (
     <div className={`flex flex-col h-full ${bgColor[pace.status]} transition-colors duration-500 px-5 pt-4 pb-6`}>
-      <p className={`text-xl font-bold text-center ${tc}`}>{icon} {PACE_MESSAGES[pace.status]}</p>
+      <p className={`text-xl font-bold text-center ${tc}`}>🚶 {PACE_MESSAGES[pace.status]}</p>
 
       {/* 進捗バー */}
       <div className="mt-3">
@@ -115,10 +109,8 @@ async function fetchPredictions(query: string): Promise<Prediction[]> {
 export function SetupPanel({
   destination,
   arrivalTime,
-  transportMode,
   routePreview,
   onArrivalTimeChange,
-  onTransportModeChange,
   onStart,
   isLoading,
   onSelectResult,
@@ -153,33 +145,6 @@ export function SetupPanel({
   return (
     // h-full を外してスクロール可能にする
     <div className="flex flex-col px-4 pt-4 pb-6 gap-3">
-
-      {/* 移動手段セレクター */}
-      <div className="grid grid-cols-4 gap-1.5 bg-gray-200 rounded-xl p-1">
-        {MODES.map((m) => {
-          const { label, icon } = TRANSPORT_LABELS[m];
-          const active = m === transportMode;
-          return (
-            <button
-              key={m}
-              onClick={() => onTransportModeChange(m)}
-              className={`flex flex-col items-center py-1.5 rounded-lg text-xs font-medium transition-all ${
-                active ? "bg-white text-blue-600 shadow-sm" : "text-gray-500"
-              }`}
-            >
-              <span className="text-lg leading-none">{icon}</span>
-              <span className="mt-0.5">{label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 電車注意書き */}
-      {transportMode === "train" && (
-        <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 text-center">
-          電車は道路ルートで概算表示します
-        </p>
-      )}
 
       {/* 検索バー + 予測ドロップダウン */}
       <div className="relative">
@@ -236,7 +201,7 @@ export function SetupPanel({
           <p className="text-sm text-green-700 font-medium">✅ 目的地が設定されました</p>
           {routePreview && (
             <p className="text-xs text-gray-500 mt-0.5">
-              {TRANSPORT_LABELS[transportMode].icon} 約 {formatDuration(routePreview.duration)} ／ {formatDistance(routePreview.distance)}
+              🚶 約 {formatDuration(routePreview.duration)} ／ {formatDistance(routePreview.distance)}
             </p>
           )}
           {!routePreview && (
