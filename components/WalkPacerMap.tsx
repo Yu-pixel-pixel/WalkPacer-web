@@ -50,11 +50,11 @@ export default function WalkPacerMap({
     const map = L.map(containerRef.current, { zoomControl: false })
       .setView([35.6812, 139.7671], 15);
 
-    // Google Maps に最も近い無料タイル（CartoDB Voyager）
+    // Google Maps に最も近い無料タイル（Stadia Maps alidade_smooth）
     L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png",
       {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+        attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openmaptiles.org/">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 20,
       }
     ).addTo(map);

@@ -7,30 +7,71 @@ export interface RouteResult {
   coordinates: [number, number][];
 }
 
+// Valhalla エンコードポリライン6 デコーダー
+function decodePolyline6(encoded: string): [number, number][] {
+  const coords: [number, number][] = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let b, shift = 0, result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coords.push([lat / 1e6, lng / 1e6]);
+  }
+  return coords;
+}
+
 export async function fetchRoute(
   from: [number, number],
   to: [number, number]
 ): Promise<RouteResult> {
-  const url =
-    `https://routing.openstreetmap.de/routed-foot/route/v1/foot/` +
-    `${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`;
+  const body = {
+    locations: [
+      { lon: from[1], lat: from[0] },
+      { lon: to[1],   lat: to[0]   },
+    ],
+    costing: "pedestrian",
+    costing_options: {
+      pedestrian: {
+        use_roads: 1.0,      // 道路・国道を優先（0=歩道のみ、1=道路優先）
+        use_hills: 0.5,      // 坂道ニュートラル
+        walking_speed: 5.0,  // km/h
+        shortest: true,      // 最短距離ルートを優先
+      },
+    },
+    directions_options: { units: "kilometers" },
+  };
 
-  const res = await fetch(url);
+  const res = await fetch("https://valhalla.openstreetmap.de/route", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
   if (!res.ok) throw new Error("経路の取得に失敗しました");
-
   const data = await res.json();
-  if (data.code !== "Ok" || !data.routes?.[0]) {
+
+  if (!data.trip?.legs?.[0]) {
     throw new Error("経路が見つかりませんでした");
   }
 
-  const route = data.routes[0];
-  const coords: [number, number][] = route.geometry.coordinates.map(
-    ([lng, lat]: [number, number]) => [lat, lng]
-  );
+  const leg = data.trip.legs[0];
+  const summary = data.trip.summary;
+  const coords = decodePolyline6(leg.shape);
 
   return {
-    totalDistance: route.distance,
-    estimatedDuration: route.duration,
+    totalDistance: summary.length * 1000,  // km → m
+    estimatedDuration: summary.time,        // 秒
     coordinates: coords,
   };
 }
