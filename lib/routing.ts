@@ -43,10 +43,11 @@ export async function fetchRoute(
     costing: "pedestrian",
     costing_options: {
       pedestrian: {
-        use_roads: 1.0,      // 道路・国道を優先（0=歩道のみ、1=道路優先）
-        use_hills: 0.5,      // 坂道ニュートラル
-        walking_speed: 5.0,  // km/h
-        shortest: true,      // 最短距離ルートを優先
+        walking_speed: 5.0,    // km/h
+        sidewalk_factor: 1.0,  // 歩道（幹線道路沿い）を通常通り評価
+        walkway_factor: 0.9,   // 歩道専用路の優先度を少し下げ、幹線道路優先
+        alley_factor: 2.0,     // 路地を避ける
+        shortest: true,        // 最短距離ルートを優先
       },
     },
     directions_options: { units: "kilometers" },

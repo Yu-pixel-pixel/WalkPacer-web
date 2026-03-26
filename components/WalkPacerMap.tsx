@@ -50,12 +50,12 @@ export default function WalkPacerMap({
     const map = L.map(containerRef.current, { zoomControl: false })
       .setView([35.6812, 139.7671], 15);
 
-    // Google Maps に近い配色の無料タイル（ESRI World Street Map）
+    // モダンな無料タイル（CartoDB Voyager）※後でMapTilerに差し替え予定
     L.tileLayer(
-      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
       {
-        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, HERE, Garmin, USGS, Intermap, USGS, METI/NASA, EPA, USDA',
-        maxZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+        maxZoom: 20,
       }
     ).addTo(map);
 
