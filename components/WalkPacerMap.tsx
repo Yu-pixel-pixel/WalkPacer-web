@@ -50,12 +50,14 @@ export default function WalkPacerMap({
     const map = L.map(containerRef.current, { zoomControl: false })
       .setView([35.6812, 139.7671], 15);
 
-    // モダンな無料タイル（CartoDB Voyager）※後でMapTilerに差し替え予定
+    // MapTiler Streets-v2（Google Maps と同等の見た目）
+    const mtKey = process.env.NEXT_PUBLIC_MAPTILER_KEY;
     L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${mtKey}`,
       {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+        attribution: '© <a href="https://www.maptiler.com/copyright/">MapTiler</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 20,
+        tileSize: 256,
       }
     ).addTo(map);
 
