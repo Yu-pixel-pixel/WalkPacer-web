@@ -19,10 +19,13 @@ interface NavigatingProps {
   totalDistance: number;
   estimatedDuration: number;
   onStop: () => void;
+  onShare: () => void;
+  shareUrl: string | null;
+  shareCopied: boolean;
 }
 
 // ━━━ ナビ中パネル ━━━
-export function NavigatingPanel({ pace, totalDistance, estimatedDuration, onStop }: NavigatingProps) {
+export function NavigatingPanel({ pace, totalDistance, estimatedDuration, onStop, onShare, shareUrl, shareCopied }: NavigatingProps) {
   const walked = totalDistance - pace.remainingDistance;
   const progress = totalDistance > 0 ? Math.min(walked / totalDistance, 1) : 0;
 
@@ -58,6 +61,14 @@ export function NavigatingPanel({ pace, totalDistance, estimatedDuration, onStop
       </div>
 
       <div className="flex-1" />
+
+      {/* 共有ボタン */}
+      <button
+        onClick={onShare}
+        className={`w-full py-3 rounded-2xl font-semibold text-sm active:scale-95 transition-transform ${isDark ? "bg-white/20 text-white" : "bg-black/10 text-gray-800"}`}
+      >
+        {shareCopied ? "✅ リンクをコピーしました" : shareUrl ? "📤 共有中（タップでURL再コピー）" : "📤 現在地を共有"}
+      </button>
 
       <button
         onClick={onStop}

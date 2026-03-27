@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { calculatePace, PaceResult } from "@/lib/paceCalculator";
 import { fetchRoute, SearchResult } from "@/lib/routing";
+import { supabase } from "@/lib/supabase";
 import { NavigatingPanel, SetupPanel } from "@/components/PacePanel";
 
 const WalkPacerMap = dynamic(() => import("@/components/WalkPacerMap"), { ssr: false });
@@ -27,6 +28,10 @@ export default function Home() {
   const [routePreview, setRoutePreview] = useState<{ distance: number; duration: number } | null>(null);
   const [pace, setPace] = useState<PaceResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+  const shareIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const shareSessionIdRef = useRef<string | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 目的地 or 現在地が変わったら自動でルートプレビューを取得
@@ -92,7 +97,64 @@ export default function Home() {
     }
   };
 
-  const handleStop = () => {
+  const handleShare = async () => {
+    if (!geo.currentPos || !pace) return;
+
+    // 初回：セッション生成
+    if (!shareSessionIdRef.current) {
+      const id = crypto.randomUUID();
+      shareSessionIdRef.current = id;
+
+      await supabase.from("sessions").upsert({
+        id,
+        lat: geo.currentPos[0],
+        lng: geo.currentPos[1],
+        pace_status: pace.status,
+        remaining_distance: pace.remainingDistance,
+        remaining_minutes: Math.ceil(pace.remainingDistance / (5 / 3.6) / 60),
+        dest_lat: destination?.[0] ?? null,
+        dest_lng: destination?.[1] ?? null,
+        updated_at: new Date().toISOString(),
+      });
+
+      const url = `${window.location.origin}/share/${id}`;
+      setShareUrl(url);
+      await navigator.clipboard.writeText(url).catch(() => {});
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 3000);
+
+      // 5秒ごとに位置・ペースを送信
+      shareIntervalRef.current = setInterval(async () => {
+        if (!shareSessionIdRef.current || !geo.currentPos) return;
+        await supabase.from("sessions").update({
+          lat: geo.currentPos[0],
+          lng: geo.currentPos[1],
+          pace_status: pace.status,
+          remaining_distance: pace.remainingDistance,
+          remaining_minutes: Math.ceil(pace.remainingDistance / (5 / 3.6) / 60),
+          updated_at: new Date().toISOString(),
+        }).eq("id", shareSessionIdRef.current);
+      }, 5000);
+    } else {
+      // 2回目以降：URLを再コピー
+      await navigator.clipboard.writeText(shareUrl!).catch(() => {});
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 3000);
+    }
+  };
+
+  const stopSharing = async () => {
+    if (shareIntervalRef.current) { clearInterval(shareIntervalRef.current); shareIntervalRef.current = null; }
+    if (shareSessionIdRef.current) {
+      await supabase.from("sessions").delete().eq("id", shareSessionIdRef.current);
+      shareSessionIdRef.current = null;
+    }
+    setShareUrl(null);
+    setShareCopied(false);
+  };
+
+  const handleStop = async () => {
+    await stopSharing();
     geo.stop();
     setIsNavigating(false);
     setRouteCoords([]);
@@ -128,6 +190,9 @@ export default function Home() {
             totalDistance={totalDistance}
             estimatedDuration={estimatedDuration}
             onStop={handleStop}
+            onShare={handleShare}
+            shareUrl={shareUrl}
+            shareCopied={shareCopied}
           />
         ) : (
           <SetupPanel
