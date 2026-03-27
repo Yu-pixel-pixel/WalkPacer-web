@@ -29,22 +29,25 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 目的地が変わったら自動でルートプレビューを取得
+  // 目的地 or 現在地が変わったら自動でルートプレビューを取得
+  const currentPosRef = useRef(geo.currentPos);
+  useEffect(() => { currentPosRef.current = geo.currentPos; }, [geo.currentPos]);
+
   useEffect(() => {
     if (!destination || !geo.currentPos || isNavigating) return;
-    setRoutePreview(null);
+    const pos = geo.currentPos;
 
     if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
     previewTimerRef.current = setTimeout(async () => {
       try {
-        const route = await fetchRoute(geo.currentPos!, destination);
+        const route = await fetchRoute(pos, destination);
         setRoutePreview({ distance: route.totalDistance, duration: route.estimatedDuration });
         setRouteCoords(route.coordinates);
       } catch {
-        // プレビュー失敗は無視（スタート時に再取得）
+        setError("経路の取得に失敗しました。もう一度お試しください。");
       }
     }, 600);
-  }, [destination, isNavigating]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [destination, geo.currentPos, isNavigating]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ペース再計算
   useEffect(() => {

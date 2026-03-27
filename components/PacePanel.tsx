@@ -78,7 +78,7 @@ function InfoCard({ label, value, isDark }: { label: string; value: string; isDa
   );
 }
 
-// ━━━ Photon API で場所予測検索 ━━━
+// ━━━ Nominatim で場所予測検索 ━━━
 interface Prediction {
   name: string;
   sub: string;
@@ -88,20 +88,17 @@ interface Prediction {
 
 async function fetchPredictions(query: string): Promise<Prediction[]> {
   if (query.length < 2) return [];
-  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6&lang=ja`;
-  const res = await fetch(url);
+  const url =
+    `https://nominatim.openstreetmap.org/search?` +
+    `q=${encodeURIComponent(query)}&format=json&limit=6&accept-language=ja&addressdetails=1`;
+  const res = await fetch(url, { headers: { "User-Agent": "WalkPacer-Web/1.0" } });
   if (!res.ok) return [];
-  const data = await res.json();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return data.features.map((f: any) => {
-    const p = f.properties;
-    const parts = [p.name, p.city, p.county, p.state, p.country].filter(Boolean);
-    return {
-      name: p.name || parts[0] || query,
-      sub: parts.slice(1).join(" · "),
-      lat: f.geometry.coordinates[1],
-      lng: f.geometry.coordinates[0],
-    };
+  const data: any[] = await res.json();
+  return data.map((item) => {
+    const name = item.name || item.display_name.split(",")[0];
+    const sub = item.display_name;
+    return { name, sub, lat: parseFloat(item.lat), lng: parseFloat(item.lon) };
   });
 }
 
@@ -130,7 +127,7 @@ export function SetupPanel({
       const results = await fetchPredictions(query);
       setPredictions(results);
       setIsFetching(false);
-    }, 200);
+    }, 400);
   }, [query]);
 
   const handleSelect = (p: Prediction) => {

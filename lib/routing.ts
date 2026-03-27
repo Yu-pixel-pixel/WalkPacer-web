@@ -31,7 +31,8 @@ function decodePolyline6(encoded: string): [number, number][] {
   return coords;
 }
 
-export async function fetchRoute(
+// Valhalla ルーティング（メイン）
+async function fetchRouteValhalla(
   from: [number, number],
   to: [number, number]
 ): Promise<RouteResult> {
@@ -43,11 +44,10 @@ export async function fetchRoute(
     costing: "pedestrian",
     costing_options: {
       pedestrian: {
-        walking_speed: 5.0,    // km/h
-        sidewalk_factor: 1.0,  // 歩道（幹線道路沿い）を通常通り評価
-        walkway_factor: 0.9,   // 歩道専用路の優先度を少し下げ、幹線道路優先
-        alley_factor: 2.0,     // 路地を避ける
-        shortest: true,        // 最短距離ルートを優先
+        walking_speed: 5.0,
+        walkway_factor: 0.9,
+        alley_factor: 2.0,
+        shortest: true,
       },
     },
     directions_options: { units: "kilometers" },
@@ -59,22 +59,54 @@ export async function fetchRoute(
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) throw new Error("経路の取得に失敗しました");
+  if (!res.ok) throw new Error("Valhalla error");
   const data = await res.json();
-
-  if (!data.trip?.legs?.[0]) {
-    throw new Error("経路が見つかりませんでした");
-  }
+  if (!data.trip?.legs?.[0]) throw new Error("No route");
 
   const leg = data.trip.legs[0];
   const summary = data.trip.summary;
-  const coords = decodePolyline6(leg.shape);
-
   return {
-    totalDistance: summary.length * 1000,  // km → m
-    estimatedDuration: summary.time,        // 秒
+    totalDistance: summary.length * 1000,
+    estimatedDuration: summary.time,
+    coordinates: decodePolyline6(leg.shape),
+  };
+}
+
+// OSRM ルーティング（フォールバック）
+async function fetchRouteOSRM(
+  from: [number, number],
+  to: [number, number]
+): Promise<RouteResult> {
+  const url =
+    `https://router.project-osrm.org/route/v1/foot/` +
+    `${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("経路の取得に失敗しました");
+  const data = await res.json();
+  if (data.code !== "Ok" || !data.routes?.[0]) throw new Error("経路が見つかりませんでした");
+
+  const route = data.routes[0];
+  const coords: [number, number][] = route.geometry.coordinates.map(
+    ([lng, lat]: [number, number]) => [lat, lng]
+  );
+  return {
+    totalDistance: route.distance,
+    estimatedDuration: route.duration,
     coordinates: coords,
   };
+}
+
+// Valhalla を試みて失敗したら OSRM にフォールバック
+export async function fetchRoute(
+  from: [number, number],
+  to: [number, number]
+): Promise<RouteResult> {
+  try {
+    return await fetchRouteValhalla(from, to);
+  } catch {
+    return await fetchRouteOSRM(from, to);
+  }
 }
 
 export interface SearchResult {
@@ -82,21 +114,4 @@ export interface SearchResult {
   address: string;
   lat: number;
   lng: number;
-}
-
-export async function searchPlaces(query: string): Promise<SearchResult[]> {
-  const url =
-    `https://nominatim.openstreetmap.org/search?` +
-    `q=${encodeURIComponent(query)}&format=json&limit=5&accept-language=ja`;
-
-  const res = await fetch(url, { headers: { "User-Agent": "WalkPacer-Web/1.0" } });
-  if (!res.ok) return [];
-
-  const data = await res.json();
-  return data.map((item: Record<string, string>) => ({
-    name: item.name || item.display_name.split(",")[0],
-    address: item.display_name,
-    lat: parseFloat(item.lat),
-    lng: parseFloat(item.lon),
-  }));
 }
